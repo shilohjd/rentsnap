@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from agent import analyze_unit
 
 HUD_FMR_BASE_URL = "https://www.huduser.gov/hudapi/public/fmr/data"
+HUD_FMR_PATH_BASE_URL = "https://www.huduser.gov/hudapi/public/fmr/data/"
 ZIP_RE = re.compile(r"\b(\d{5})(?:-\d{4})?\b")
 
 BEDROOM_FMR_KEYS = {
@@ -111,23 +112,34 @@ def _get_hud_fmr(address: str, beds: int) -> dict:
         result["error"] = "No ZIP code found in the address."
         return result
 
-    request = urllib.request.Request(
-        f"{HUD_FMR_BASE_URL}/{zip_code}",
-        headers=_hud_headers(),
-        method="GET",
-    )
+    headers = _hud_headers()
+    errors = []
 
-    try:
-        with urllib.request.urlopen(request, timeout=10) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
-        result["error"] = f"HUD FMR lookup unavailable: {exc}"
+    for url in _hud_fmr_urls(zip_code):
+        request = urllib.request.Request(url, headers=headers, method="GET")
+        _log_hud_request(request)
+
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
+            errors.append(f"{url}: {exc}")
+            print(f"HUD FMR request failed: {url} -> {exc}", flush=True)
+            continue
+
+        result["rent"] = _selected_bedroom_fmr(payload, selected_beds)
+        if result["rent"] is None:
+            result["error"] = "HUD FMR response did not include a value for the selected bedroom count."
         return result
 
-    result["rent"] = _selected_bedroom_fmr(payload, selected_beds)
-    if result["rent"] is None:
-        result["error"] = "HUD FMR response did not include a value for the selected bedroom count."
+    result["error"] = "HUD FMR lookup unavailable: " + " | ".join(errors)
     return result
+
+
+def _hud_fmr_urls(zip_code: str) -> List[str]:
+    primary_url = f"{HUD_FMR_BASE_URL.rstrip('/')}/{zip_code}"
+    fallback_url = f"{HUD_FMR_PATH_BASE_URL}{zip_code}"
+    return list(dict.fromkeys([primary_url, fallback_url]))
 
 
 def _hud_headers() -> dict:
@@ -135,14 +147,31 @@ def _hud_headers() -> dict:
         "Accept": "application/json",
         "User-Agent": "RentSnap/1.0",
     }
-    token = (
-        os.getenv("HUD_API_TOKEN")
-        or os.getenv("HUDUSER_API_TOKEN")
-        or os.getenv("HUD_USER_API_TOKEN")
-    )
+    token = (os.getenv("HUD_API_TOKEN") or "").strip()
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    else:
+        print("HUD_API_TOKEN is not set; HUD FMR request will be sent without Authorization.", flush=True)
     return headers
+
+
+def _log_hud_request(request: urllib.request.Request) -> None:
+    headers = dict(request.header_items())
+    logged_headers = dict(headers)
+    if "Authorization" in logged_headers:
+        logged_headers["Authorization"] = _redact_authorization(logged_headers["Authorization"])
+
+    print(f"HUD FMR request URL: {request.full_url}", flush=True)
+    print(f"HUD FMR request headers: {logged_headers}", flush=True)
+
+
+def _redact_authorization(value: str) -> str:
+    if not value.startswith("Bearer "):
+        return "<redacted>"
+    token = value.removeprefix("Bearer ")
+    if len(token) <= 8:
+        return "Bearer <redacted>"
+    return f"Bearer {token[:4]}...{token[-4:]}"
 
 
 def _selected_bedroom_fmr(payload: Any, beds: int) -> Optional[float]:
