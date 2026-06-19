@@ -30,11 +30,11 @@ US_STATE_ABBREVIATIONS = {
 }
 
 BEDROOM_FMR_KEYS = {
-    0: ("Efficiency", "efficiency", "0", "0br", "0_br", "zero_bedroom"),
-    1: ("One-Bedroom", "One Bedroom", "one_bedroom", "1", "1br", "1_br"),
-    2: ("Two-Bedroom", "Two Bedroom", "two_bedroom", "2", "2br", "2_br"),
-    3: ("Three-Bedroom", "Three Bedroom", "three_bedroom", "3", "3br", "3_br"),
-    4: ("Four-Bedroom", "Four Bedroom", "four_bedroom", "4", "4br", "4_br"),
+    0: ("Efficiency", "efficiency", "0", "0br", "0_br", "zero_bedroom", "fmr_0", "fmr0"),
+    1: ("One-Bedroom", "One Bedroom", "one_bedroom", "1", "1br", "1_br", "fmr_1", "fmr1"),
+    2: ("Two-Bedroom", "Two Bedroom", "two_bedroom", "2", "2br", "2_br", "fmr_2", "fmr2"),
+    3: ("Three-Bedroom", "Three Bedroom", "three_bedroom", "3", "3br", "3_br", "fmr_3", "fmr3"),
+    4: ("Four-Bedroom", "Four Bedroom", "four_bedroom", "4", "4br", "4_br", "fmr_4", "fmr4"),
 }
 
 BEDROOM_LABELS = {
