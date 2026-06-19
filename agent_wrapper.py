@@ -10,6 +10,7 @@ import re
 import sys
 import traceback
 import urllib.error
+import urllib.parse
 import urllib.request
 from html import escape
 from typing import Any, List, Optional
@@ -137,9 +138,9 @@ def _get_hud_fmr(address: str, beds: int) -> dict:
 
 
 def _hud_fmr_urls(zip_code: str) -> List[str]:
-    primary_url = f"{HUD_FMR_BASE_URL.rstrip('/')}/{zip_code}"
-    fallback_url = f"{HUD_FMR_PATH_BASE_URL}{zip_code}"
-    return list(dict.fromkeys([primary_url, fallback_url]))
+    query_url = f"{HUD_FMR_BASE_URL}?{urllib.parse.urlencode({'zip': zip_code})}"
+    path_url = f"{HUD_FMR_PATH_BASE_URL}{zip_code}"
+    return [query_url, path_url]
 
 
 def _hud_headers() -> dict:
