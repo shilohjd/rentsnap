@@ -10,7 +10,6 @@ import re
 import sys
 import traceback
 import urllib.error
-import urllib.parse
 import urllib.request
 from html import escape
 from typing import Any, List, Optional
@@ -20,9 +19,15 @@ import markdown as md
 sys.path.insert(0, os.path.dirname(__file__))
 from agent import analyze_unit
 
-HUD_FMR_BASE_URL = "https://www.huduser.gov/hudapi/public/fmr/data"
-HUD_FMR_PATH_BASE_URL = "https://www.huduser.gov/hudapi/public/fmr/data/"
+HUD_FMR_STATEDATA_BASE_URL = "https://www.huduser.gov/hudapi/public/fmr/statedata"
 ZIP_RE = re.compile(r"\b(\d{5})(?:-\d{4})?\b")
+STATE_ZIP_RE = re.compile(r"(?:,|\b)\s*([A-Za-z]{2})\s+\d{5}(?:-\d{4})?\b")
+US_STATE_ABBREVIATIONS = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL",
+    "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT",
+    "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
+    "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
+}
 
 BEDROOM_FMR_KEYS = {
     0: ("Efficiency", "efficiency", "0", "0br", "0_br", "zero_bedroom"),
@@ -98,49 +103,58 @@ def _extract_zip(address: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+def _extract_state(address: str) -> Optional[str]:
+    match = STATE_ZIP_RE.search(address or "")
+    if not match:
+        return None
+
+    state = match.group(1).upper()
+    return state if state in US_STATE_ABBREVIATIONS else None
+
+
 def _get_hud_fmr(address: str, beds: int) -> dict:
     zip_code = _extract_zip(address)
+    state = _extract_state(address)
     selected_beds = max(0, min(int(beds or 0), 4))
     result = {
         "zip_code": zip_code,
+        "state": state,
         "bedrooms": selected_beds,
         "label": BEDROOM_LABELS.get(selected_beds, f"{selected_beds} bedrooms"),
         "rent": None,
+        "area_name": None,
         "error": None,
     }
 
     if not zip_code:
         result["error"] = "No ZIP code found in the address."
         return result
-
-    headers = _hud_headers()
-    errors = []
-
-    for url in _hud_fmr_urls(zip_code):
-        request = urllib.request.Request(url, headers=headers, method="GET")
-        _log_hud_request(request)
-
-        try:
-            with urllib.request.urlopen(request, timeout=10) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
-            errors.append(f"{url}: {exc}")
-            print(f"HUD FMR request failed: {url} -> {exc}", flush=True)
-            continue
-
-        result["rent"] = _selected_bedroom_fmr(payload, selected_beds)
-        if result["rent"] is None:
-            result["error"] = "HUD FMR response did not include a value for the selected bedroom count."
+    if not state:
+        result["error"] = "No state abbreviation found in the address."
         return result
 
-    result["error"] = "HUD FMR lookup unavailable: " + " | ".join(errors)
+    url = f"{HUD_FMR_STATEDATA_BASE_URL}/{state}"
+    request = urllib.request.Request(url, headers=_hud_headers(), method="GET")
+    _log_hud_request(request)
+
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        print(f"HUD FMR request failed: {url} -> {exc}", flush=True)
+        result["error"] = f"HUD FMR lookup unavailable: {exc}"
+        return result
+
+    area = _find_fmr_area_for_zip(payload, zip_code)
+    if not area:
+        result["error"] = f"HUD FMR response did not include a county or metro area for ZIP {zip_code}."
+        return result
+
+    result["rent"] = _selected_bedroom_fmr(area, selected_beds)
+    result["area_name"] = _area_name(area)
+    if result["rent"] is None:
+        result["error"] = "HUD FMR response did not include a value for the selected bedroom count."
     return result
-
-
-def _hud_fmr_urls(zip_code: str) -> List[str]:
-    query_url = f"{HUD_FMR_BASE_URL}?{urllib.parse.urlencode({'zip': zip_code})}"
-    path_url = f"{HUD_FMR_PATH_BASE_URL}{zip_code}"
-    return [query_url, path_url]
 
 
 def _hud_headers() -> dict:
@@ -173,6 +187,87 @@ def _redact_authorization(value: str) -> str:
     if len(token) <= 8:
         return "Bearer <redacted>"
     return f"Bearer {token[:4]}...{token[-4:]}"
+
+
+def _find_fmr_area_for_zip(payload: Any, zip_code: str) -> Optional[dict]:
+    for collection_name in ("counties", "metroareas"):
+        for area in _collect_named_lists(payload, collection_name):
+            if isinstance(area, dict) and _area_matches_zip(area, zip_code):
+                return area
+    return None
+
+
+def _collect_named_lists(value: Any, target_name: str) -> List[Any]:
+    matches = []
+    normalized_target = _normalize_fmr_key(target_name)
+
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if _normalize_fmr_key(str(key)) == normalized_target and isinstance(item, list):
+                matches.extend(item)
+            matches.extend(_collect_named_lists(item, target_name))
+    elif isinstance(value, list):
+        for item in value:
+            matches.extend(_collect_named_lists(item, target_name))
+
+    return matches
+
+
+def _area_matches_zip(area: dict, zip_code: str) -> bool:
+    def walk(value: Any, key_hint: str = "") -> bool:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                normalized_key = _normalize_fmr_key(str(key))
+                if "zip" in normalized_key and _value_contains_zip(item, zip_code):
+                    return True
+                if walk(item, normalized_key):
+                    return True
+        elif isinstance(value, list):
+            if "zip" in key_hint and _value_contains_zip(value, zip_code):
+                return True
+            for item in value:
+                if walk(item, key_hint):
+                    return True
+        elif "zip" in key_hint and _value_contains_zip(value, zip_code):
+            return True
+        return False
+
+    return walk(area)
+
+
+def _value_contains_zip(value: Any, zip_code: str) -> bool:
+    if isinstance(value, list):
+        return any(_value_contains_zip(item, zip_code) for item in value)
+    if isinstance(value, dict):
+        return any(_value_contains_zip(item, zip_code) for item in value.values())
+    if value is None:
+        return False
+    return zip_code in re.findall(r"\d{5}", str(value))
+
+
+def _area_name(area: dict) -> Optional[str]:
+    for key in ("area_name", "areaname", "name", "county_name", "countyname", "metro_name", "metroname"):
+        value = _find_first_value(area, key)
+        if value:
+            return str(value)
+    return None
+
+
+def _find_first_value(value: Any, target_key: str) -> Optional[Any]:
+    normalized_target = _normalize_fmr_key(target_key)
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if _normalize_fmr_key(str(key)) == normalized_target and item not in (None, ""):
+                return item
+            found = _find_first_value(item, target_key)
+            if found not in (None, ""):
+                return found
+    elif isinstance(value, list):
+        for item in value:
+            found = _find_first_value(item, target_key)
+            if found not in (None, ""):
+                return found
+    return None
 
 
 def _selected_bedroom_fmr(payload: Any, beds: int) -> Optional[float]:
@@ -218,10 +313,13 @@ def _parse_rent(value: Any) -> Optional[float]:
 def _hud_fmr_html(fmr_result: dict) -> str:
     zip_code = escape(fmr_result.get("zip_code") or "Not found")
     label = escape(fmr_result.get("label") or "selected bedroom count")
+    area_name = fmr_result.get("area_name")
 
     if fmr_result.get("rent") is not None:
         rent = f"${fmr_result['rent']:,.0f}/mo"
         detail = f"HUD Fair Market Rent for {label} in ZIP {zip_code}"
+        if area_name:
+            detail += f" ({area_name})"
         value_html = f"<strong>{escape(rent)}</strong>"
     else:
         detail = f"HUD Fair Market Rent for {label}"
