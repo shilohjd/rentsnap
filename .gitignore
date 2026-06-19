@@ -1,0 +1,22 @@
+# Secrets — never commit these
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Database files (counter resets on new deploys — that's fine)
+*.db
+
+# Generated report output from dnh_intel (not needed in rentsnap)
+report.html
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/

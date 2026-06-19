@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RentSnap — Instant Rental Comp Reports</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --accent:      #0A8C73;
+      --accent-light:#E6F5F1;
+      --accent-glow: rgba(10,140,115,0.15);
+      --text:        #0A0A0B;
+      --text-2:      #52525C;
+      --text-3:      #A0A0AB;
+      --surface:     rgba(255,255,255,0.82);
+      --surface-2:   rgba(255,255,255,0.6);
+      --border:      rgba(0,0,0,0.07);
+      --border-2:    rgba(0,0,0,0.12);
+      --shadow-sm:   0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.06);
+      --shadow-md:   0 2px 4px rgba(0,0,0,.04), 0 8px 32px rgba(0,0,0,.08);
+      --shadow-lg:   0 4px 8px rgba(0,0,0,.04), 0 16px 48px rgba(0,0,0,.10);
+      --r-sm:  10px;
+      --r-md:  16px;
+      --r-lg:  22px;
+      --r-xl:  28px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      background: #F2F2F7;
+      /* Gradient mesh background */
+      background-image:
+        radial-gradient(ellipse 60% 50% at 20% 10%,  rgba(10,140,115,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 80% 90%,  rgba(10,140,115,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 40% at 60% 30%,  rgba(120,180,255,0.05) 0%, transparent 50%);
+      background-attachment: fixed;
+    }
+
+    /* ── Header ──────────────────────────────────────────── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      height: 60px;
+      background: rgba(242,242,247,0.72);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .wordmark {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: -0.03em;
+    }
+
+    .wordmark .dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      margin-left: 1px;
+      vertical-align: middle;
+      margin-bottom: 2px;
+    }
+
+    .counter-pill {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--text-2);
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      padding: 0.3rem 0.85rem;
+      border-radius: 999px;
+      box-shadow: var(--shadow-sm);
+      letter-spacing: -0.01em;
+    }
+
+    .counter-pill strong {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* ── Page wrapper ────────────────────────────────────── */
+    .page {
+      max-width: 620px;
+      margin: 0 auto;
+      padding: 5rem 1.25rem 4rem;
+    }
+
+    /* ── Hero ────────────────────────────────────────────── */
+    .hero {
+      text-align: center;
+      margin-bottom: 3rem;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--accent);
+      background: var(--accent-light);
+      border: 1px solid rgba(10,140,115,0.2);
+      padding: 0.28rem 0.85rem;
+      border-radius: 999px;
+      margin-bottom: 1.5rem;
+      letter-spacing: 0.01em;
+    }
+
+    .hero-chip::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+
+    h1 {
+      font-size: clamp(2.2rem, 6vw, 3.2rem);
+      font-weight: 600;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      color: var(--text);
+      margin-bottom: 1.1rem;
+    }
+
+    h1 .highlight {
+      background: linear-gradient(135deg, var(--accent) 0%, #0BBFA0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-sub {
+      font-size: 1rem;
+      color: var(--text-2);
+      line-height: 1.65;
+      max-width: 380px;
+      margin: 0 auto;
+      font-weight: 400;
+    }
+
+    /* ── Card ────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: var(--r-xl);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+      animation: fadeUp 0.5s 0.1s ease both;
+    }
+
+    .card-body { padding: 2rem; }
+
+    /* Section headers inside the card */
+    .section-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 1.75rem -2rem;
+    }
+
+    /* ── Inputs ──────────────────────────────────────────── */
+    .field { margin-bottom: 1rem; }
+
+    .field > label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-2);
+      margin-bottom: 0.45rem;
+      letter-spacing: -0.01em;
+    }
+
+    .optional {
+      font-size: 0.7rem;
+      font-weight: 400;
+      color: var(--text-3);
+      margin-left: 0.3rem;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      width: 100%;
+      height: 46px;
+      padding: 0 1rem;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid var(--border-2);
+      border-radius: var(--r-sm);
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 400;
+      color: var(--text);
+      transition: border-color 0.15s, box-shadow 0.15s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    input::placeholder { color: var(--text-3); }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+      background: #fff;
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; }
+
+    .select-wrap { position: relative; }
+    .select-wrap::after {
+      content: '';
+      position: absolute;
+      right: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 0; height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid var(--text-3);
+      pointer-events: none;
+    }
+
+    .field-hint {
+      font-size: 0.72rem;
+      color: var(--text-3);
+      margin-top: 0.35rem;
+      line-height: 1.5;
+    }
+
+    /* ── Amenity pills ───────────────────────────────────── */
+    .pill-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .pill-label {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .pill-label input { display: none; }
+
+    .pill-inner {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.42rem 0.9rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-2);
+      background: rgba(255,255,255,0.8);
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-2);
+      transition: all 0.15s ease;
+      letter-spacing: -0.01em;
+    }
+
+    .pill-inner::before {
+      content: '';
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--text-3);
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+
+    .pill-label:hover .pill-inner {
+      border-color: var(--accent);
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+
+    .pill-label input:checked + .pill-inner {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(10,140,115,0.3);
+    }
+
+    .pill-label input:checked + .pill-inner::before {
+      background: rgba(255,255,255,0.7);
+    }
+
+    /* ── Submit ──────────────────────────────────────────── */
+    .submit-btn {
+      width: 100%;
+      height: 52px;
+      margin-top: 0.5rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--r-md);
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(10,140,115,0.25), 0 1px 2px rgba(10,140,115,0.15);
+    }
+
+    .submit-btn:hover {
+      background: #098a70;
+      box-shadow: 0 4px 16px rgba(10,140,115,0.35), 0 1px 2px rgba(10,140,115,0.2);
+      transform: translateY(-1px);
+    }
+
+    .submit-btn:active { transform: translateY(0); }
+
+    .btn-icon {
+      width: 20px; height: 20px;
+      background: rgba(255,255,255,0.25);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ── Steps ───────────────────────────────────────────── */
+    .steps {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      margin-top: 2.5rem;
+      animation: fadeUp 0.5s 0.2s ease both;
+    }
+
+    .step-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 1;
+      max-width: 140px;
+      position: relative;
+    }
+
+    .step-item:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 16px;
+      left: calc(50% + 16px);
+      right: calc(-50% + 16px);
+      height: 1px;
+      background: var(--border-2);
+    }
+
+    .step-icon {
+      width: 32px; height: 32px;
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .step-text {
+      font-size: 0.72rem;
+      color: var(--text-3);
+      text-align: center;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+
+    /* ── Results ─────────────────────────────────────────── */
+    .results-wrapper {
+      margin-top: 2rem;
+      animation: fadeUp 0.4s ease both;
+    }
+
+    .results-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .results-tag {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .results-address {
+      font-size: 0.78rem;
+      color: var(--text-3);
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+
+    /* Markdown output styling */
+    .report-body { padding: 2rem; }
+
+    .report-body h1, .report-body h2, .report-body h3 {
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      margin: 1.5rem 0 0.6rem;
+    }
+    .report-body h1:first-child,
+    .report-body h2:first-child,
+    .report-body h3:first-child { margin-top: 0; }
+
+    .report-body h1 { font-size: 1.4rem; }
+    .report-body h2 { font-size: 1.15rem; }
+    .report-body h3 { font-size: 1rem; }
+
+    .report-body p {
+      font-size: 0.92rem;
+      line-height: 1.75;
+      color: var(--text-2);
+      margin-bottom: 0.75rem;
+    }
+
+    .report-body ul, .report-body ol {
+      padding-left: 1.25rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .report-body li {
+      font-size: 0.92rem;
+      line-height: 1.7;
+      color: var(--text-2);
+      margin-bottom: 0.3rem;
+    }
+
+    .report-body strong { font-weight: 600; color: var(--text); }
+
+    .report-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.25rem 0;
+      font-size: 0.86rem;
+      border-radius: var(--r-sm);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .report-body th {
+      text-align: left;
+      padding: 0.6rem 0.9rem;
+      background: var(--accent-light);
+      color: var(--accent);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-bottom: 1px solid rgba(10,140,115,0.15);
+    }
+
+    .report-body td {
+      padding: 0.55rem 0.9rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-2);
+    }
+
+    .report-body tr:last-child td { border-bottom: none; }
+    .report-body tr:nth-child(even) td { background: rgba(0,0,0,0.015); }
+
+    .run-another {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin: 1.5rem 2rem 2rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+      background: var(--accent-light);
+      border: 1px solid rgba(10,140,115,0.2);
+      padding: 0.45rem 1.1rem;
+      border-radius: 999px;
+      transition: all 0.15s ease;
+      letter-spacing: -0.01em;
+    }
+
+    .run-another:hover {
+      background: rgba(10,140,115,0.12);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(10,140,115,0.15);
+    }
+
+    /* ── Loading overlay ─────────────────────────────────── */
+    #loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(242,242,247,0.85);
+      backdrop-filter: saturate(180%) blur(24px);
+      -webkit-backdrop-filter: saturate(180%) blur(24px);
+      z-index: 200;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.25rem;
+    }
+
+    #loading-overlay.active { display: flex; }
+
+    .loading-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 2.5rem 3rem;
+      text-align: center;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      min-width: 280px;
+    }
+
+    .spinner {
+      width: 36px; height: 36px;
+      border: 2.5px solid var(--accent-light);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-label {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+
+    #loading-address-text {
+      font-size: 0.78rem;
+      color: var(--text-3);
+      font-weight: 400;
+    }
+
+    #loading-step {
+      font-size: 0.78rem;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 2.5rem 1.25rem;
+      font-size: 0.75rem;
+      color: var(--text-3);
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+
+    footer a { color: var(--text-2); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+  </style>
+</head>
+
+<body>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <div class="loading-label">Generating your report</div>
+      <div id="loading-address-text"></div>
+      <div id="loading-step">Searching comparable listings...</div>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <a href="/" class="wordmark">RentSnap<span class="dot"></span></a>
+    <span class="counter-pill">
+      <strong>{{ count }}</strong> reports generated
+    </span>
+  </header>
+
+  <div class="page">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-chip">Free &nbsp;·&nbsp; No account needed</div>
+      <h1>Know what your rental<br>is <span class="highlight">actually worth</span></h1>
+      <p class="hero-sub">Enter your property details and get a live comp report with market pricing in under a minute.</p>
+    </div>
+
+    <!-- Form card -->
+    <div class="card">
+      <div class="card-body">
+
+        <form action="/generate" method="post" id="report-form">
+
+          <!-- Address -->
+          <div class="field">
+            <label for="address">Property address</label>
+            <input
+              type="text"
+              id="address"
+              name="address"
+              placeholder="123 Main St, Richmond, KY 40475"
+              value="{{ address if address else '' }}"
+              required
+              autocomplete="off"
+            />
+          </div>
+
+          <!-- Beds / Baths / Type -->
+          <div class="grid-3">
+            <div class="field">
+              <label for="beds">Bedrooms</label>
+              <input type="number" id="beds" name="beds"
+                min="0" max="10"
+                value="{{ beds if beds else 2 }}" required />
+            </div>
+            <div class="field">
+              <label for="baths">Bathrooms</label>
+              <input type="number" id="baths" name="baths"
+                min="0.5" max="10" step="0.5"
+                value="{{ baths if baths else 1.0 }}" required />
+            </div>
+            <div class="field">
+              <label for="property_type">Type</label>
+              <div class="select-wrap">
+                <select id="property_type" name="property_type">
+                  {% set types = ['House','Apartment','Condo','Townhome','Duplex','Mobile Home','Other'] %}
+                  {% for t in types %}
+                    <option value="{{ t }}"
+                      {% if property_type == t %}selected
+                      {% elif not property_type and t == 'House' %}selected{% endif %}>
+                      {{ t }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Current rent -->
+          <div class="divider"></div>
+          <div class="field">
+            <label for="current_rent">
+              Current monthly rent
+              <span class="optional">— optional</span>
+            </label>
+            <input
+              type="text"
+              id="current_rent"
+              name="current_rent"
+              placeholder="e.g. 950"
+              value="{{ current_rent if current_rent else '' }}"
+            />
+            <p class="field-hint">Leave blank if pricing from scratch. Including it helps the AI assess your market position.</p>
+          </div>
+
+          <!-- Amenities -->
+          <div class="divider"></div>
+          <span class="section-label">Amenities</span>
+          <div class="pill-grid">
+            {% set all_amenities = [
+              'Parking', 'Garage', 'In-unit W/D', 'W/D hookups',
+              'Pet-friendly', 'Central A/C', 'Dishwasher',
+              'Yard / outdoor space', 'Basement', 'Pool',
+              'Utilities included', 'Storage unit'
+            ] %}
+            {% for a in all_amenities %}
+            <label class="pill-label">
+              <input type="checkbox" name="amenities" value="{{ a }}"
+                {% if amenities and a in amenities %}checked{% endif %} />
+              <span class="pill-inner">{{ a }}</span>
+            </label>
+            {% endfor %}
+          </div>
+
+          <!-- Submit -->
+          <div class="divider"></div>
+          <button type="submit" class="submit-btn">
+            <span class="btn-icon">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M1 5h8M5.5 1.5L9 5l-3.5 3.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            Generate comp report
+          </button>
+
+        </form>
+      </div>
+    </div>
+
+    <!-- Steps -->
+    <div class="steps">
+      <div class="step-item">
+        <div class="step-icon">1</div>
+        <div class="step-text">Enter property details</div>
+      </div>
+      <div class="step-item">
+        <div class="step-icon">2</div>
+        <div class="step-text">AI searches live listings</div>
+      </div>
+      <div class="step-item">
+        <div class="step-icon">3</div>
+        <div class="step-text">Get your comp report</div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    {% if show_results %}
+    <div class="results-wrapper">
+      <div class="results-topbar">
+        <span class="results-tag">Comp report</span>
+        <span class="results-address">
+          {{ address }} &middot; {{ beds }}bd / {{ baths }}ba{% if property_type %} &middot; {{ property_type }}{% endif %}
+        </span>
+      </div>
+      <div class="card">
+        <div class="report-body">
+          {{ report_html | safe }}
+        </div>
+        <a href="/" class="run-another">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          Run another report
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    Built with LangChain &amp; Claude &nbsp;·&nbsp;
+    <a href="https://github.com/yourusername/rentsnap" target="_blank" rel="noopener">GitHub</a>
+    &nbsp;·&nbsp; Free to use
+  </footer>
+
+  <script>
+    const form    = document.getElementById('report-form');
+    const overlay = document.getElementById('loading-overlay');
+    const stepEl  = document.getElementById('loading-step');
+    const addrEl  = document.getElementById('loading-address-text');
+
+    const steps = [
+      'Searching comparable listings...',
+      'Analyzing market data...',
+      'Comparing property features...',
+      'Calculating price range...',
+      'Building your report...',
+    ];
+
+    form.addEventListener('submit', function () {
+      addrEl.textContent = document.getElementById('address').value;
+      overlay.classList.add('active');
+      let i = 0;
+      setInterval(function () {
+        i = (i + 1) % steps.length;
+        stepEl.textContent = steps[i];
+      }, 8000);
+    });
+
+    {% if show_results %}
+    document.addEventListener('DOMContentLoaded', function () {
+      const r = document.querySelector('.results-wrapper');
+      if (r) setTimeout(() => r.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
+    });
+    {% endif %}
+  </script>
+
+</body>
+</html>

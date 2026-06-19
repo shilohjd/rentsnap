@@ -1,0 +1,15 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+jinja2==3.1.4
+python-multipart==0.0.9
+markdown==3.7
+python-dotenv==1.0.1
+
+# ── Your existing agent dependencies ────────────────────────────
+# These match what dnh_intel already uses
+langchain
+langchain-anthropic
+langchain-community
+langgraph
+tavily-python
+anthropic
