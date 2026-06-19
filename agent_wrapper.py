@@ -4,38 +4,21 @@ agent_wrapper.py
 Bridges RentSnap's web form -> your existing DNH analyze_unit function.
 """
 
-import json
-import os
 import re
 import sys
 import traceback
-import urllib.error
-import urllib.request
 from html import escape
-from typing import Any, List, Optional
+from typing import List, Optional
+import os
 
 import markdown as md
 
 sys.path.insert(0, os.path.dirname(__file__))
 from agent import analyze_unit
 
-HUD_FMR_STATEDATA_BASE_URL = "https://www.huduser.gov/hudapi/public/fmr/statedata"
 ZIP_RE = re.compile(r"\b(\d{5})(?:-\d{4})?\b")
-STATE_ZIP_RE = re.compile(r"(?:,|\b)\s*([A-Za-z]{2})\s+\d{5}(?:-\d{4})?\b")
-US_STATE_ABBREVIATIONS = {
-    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL",
-    "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT",
-    "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
-    "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
-}
-
-BEDROOM_FMR_KEYS = {
-    0: ("Efficiency", "efficiency", "0", "0br", "0_br", "zero_bedroom", "fmr_0", "fmr0"),
-    1: ("One-Bedroom", "One Bedroom", "one_bedroom", "1", "1br", "1_br", "fmr_1", "fmr1"),
-    2: ("Two-Bedroom", "Two Bedroom", "two_bedroom", "2", "2br", "2_br", "fmr_2", "fmr2"),
-    3: ("Three-Bedroom", "Three Bedroom", "three_bedroom", "3", "3br", "3_br", "fmr_3", "fmr3"),
-    4: ("Four-Bedroom", "Four Bedroom", "four_bedroom", "4", "4br", "4_br", "fmr_4", "fmr4"),
-}
+STATE_RE = re.compile(r"\b(KY|Kentucky)\b", re.IGNORECASE)
+COUNTY_RE = re.compile(r"\b([A-Za-z .'-]+?)\s+County\b", re.IGNORECASE)
 
 BEDROOM_LABELS = {
     0: "Efficiency",
@@ -43,6 +26,68 @@ BEDROOM_LABELS = {
     2: "2 bedrooms",
     3: "3 bedrooms",
     4: "4 bedrooms",
+}
+
+# FY2025 HUD county-level FMR data for Kentucky. Includes Madison, Fayette,
+# Jefferson, and the top 20 KY counties by HUD's 2022 population field.
+KY_FY2025_FMR_BY_COUNTY = {
+    "Jefferson": {"area_name": "Louisville, KY-IN HUD Metro FMR Area", "fmr_0": 1003, "fmr_1": 1094, "fmr_2": 1330, "fmr_3": 1714, "fmr_4": 1989},
+    "Fayette": {"area_name": "Lexington-Fayette, KY MSA", "fmr_0": 799, "fmr_1": 982, "fmr_2": 1165, "fmr_3": 1583, "fmr_4": 1781},
+    "Kenton": {"area_name": "Cincinnati, OH-KY-IN HUD Metro FMR Area", "fmr_0": 883, "fmr_1": 993, "fmr_2": 1287, "fmr_3": 1707, "fmr_4": 1885},
+    "Boone": {"area_name": "Cincinnati, OH-KY-IN HUD Metro FMR Area", "fmr_0": 883, "fmr_1": 993, "fmr_2": 1287, "fmr_3": 1707, "fmr_4": 1885},
+    "Warren": {"area_name": "Bowling Green, KY HUD Metro FMR Area", "fmr_0": 882, "fmr_1": 993, "fmr_2": 1173, "fmr_3": 1413, "fmr_4": 1793},
+    "Hardin": {"area_name": "Elizabethtown, KY HUD Metro FMR Area", "fmr_0": 857, "fmr_1": 862, "fmr_2": 1075, "fmr_3": 1506, "fmr_4": 1805},
+    "Daviess": {"area_name": "Owensboro, KY MSA", "fmr_0": 854, "fmr_1": 860, "fmr_2": 1128, "fmr_3": 1494, "fmr_4": 1496},
+    "Campbell": {"area_name": "Cincinnati, OH-KY-IN HUD Metro FMR Area", "fmr_0": 883, "fmr_1": 993, "fmr_2": 1287, "fmr_3": 1707, "fmr_4": 1885},
+    "Madison": {"area_name": "Madison County, KY", "fmr_0": 740, "fmr_1": 825, "fmr_2": 944, "fmr_3": 1323, "fmr_4": 1407},
+    "Bullitt": {"area_name": "Louisville, KY-IN HUD Metro FMR Area", "fmr_0": 1003, "fmr_1": 1094, "fmr_2": 1330, "fmr_3": 1714, "fmr_4": 1989},
+    "Christian": {"area_name": "Clarksville, TN-KY HUD Metro FMR Area", "fmr_0": 916, "fmr_1": 976, "fmr_2": 1229, "fmr_3": 1722, "fmr_4": 2064},
+    "Oldham": {"area_name": "Louisville, KY-IN HUD Metro FMR Area", "fmr_0": 1003, "fmr_1": 1094, "fmr_2": 1330, "fmr_3": 1714, "fmr_4": 1989},
+    "McCracken": {"area_name": "McCracken County, KY", "fmr_0": 693, "fmr_1": 781, "fmr_2": 1011, "fmr_3": 1218, "fmr_4": 1698},
+    "Pulaski": {"area_name": "Pulaski County, KY", "fmr_0": 676, "fmr_1": 716, "fmr_2": 939, "fmr_3": 1131, "fmr_4": 1449},
+    "Laurel": {"area_name": "Laurel County, KY", "fmr_0": 610, "fmr_1": 678, "fmr_2": 889, "fmr_3": 1118, "fmr_4": 1206},
+    "Pike": {"area_name": "Pike County, KY", "fmr_0": 706, "fmr_1": 771, "fmr_2": 981, "fmr_3": 1182, "fmr_4": 1431},
+    "Scott": {"area_name": "Lexington-Fayette, KY MSA", "fmr_0": 799, "fmr_1": 982, "fmr_2": 1165, "fmr_3": 1583, "fmr_4": 1781},
+    "Jessamine": {"area_name": "Lexington-Fayette, KY MSA", "fmr_0": 799, "fmr_1": 982, "fmr_2": 1165, "fmr_3": 1583, "fmr_4": 1781},
+    "Franklin": {"area_name": "Franklin County, KY", "fmr_0": 741, "fmr_1": 839, "fmr_2": 1064, "fmr_3": 1397, "fmr_4": 1670},
+    "Boyd": {"area_name": "Huntington-Ashland, WV-KY-OH HUD Metro FMR Area", "fmr_0": 844, "fmr_1": 850, "fmr_2": 971, "fmr_3": 1259, "fmr_4": 1459},
+}
+
+KY_STATEWIDE_MEDIAN_FMR = {
+    "area_name": "Kentucky statewide median",
+    "fmr_0": 636,
+    "fmr_1": 721,
+    "fmr_2": 872,
+    "fmr_3": 1187,
+    "fmr_4": 1336,
+}
+
+KY_CITY_TO_COUNTY = {
+    "ashland": "Boyd",
+    "berea": "Madison",
+    "bowling green": "Warren",
+    "burlington": "Boone",
+    "covington": "Kenton",
+    "elizabethtown": "Hardin",
+    "florence": "Boone",
+    "fort thomas": "Campbell",
+    "frankfort": "Franklin",
+    "georgetown": "Scott",
+    "hopkinsville": "Christian",
+    "independence": "Kenton",
+    "la grange": "Oldham",
+    "lexington": "Fayette",
+    "london": "Laurel",
+    "louisville": "Jefferson",
+    "newport": "Campbell",
+    "nicholasville": "Jessamine",
+    "owensboro": "Daviess",
+    "paducah": "McCracken",
+    "pikeville": "Pike",
+    "radcliff": "Hardin",
+    "richmond": "Madison",
+    "shepherdsville": "Bullitt",
+    "somerset": "Pulaski",
 }
 
 
@@ -104,225 +149,82 @@ def _extract_zip(address: str) -> Optional[str]:
 
 
 def _extract_state(address: str) -> Optional[str]:
-    match = STATE_ZIP_RE.search(address or "")
-    if not match:
-        return None
-
-    state = match.group(1).upper()
-    return state if state in US_STATE_ABBREVIATIONS else None
+    return "KY" if STATE_RE.search(address or "") else None
 
 
 def _get_hud_fmr(address: str, beds: int) -> dict:
     zip_code = _extract_zip(address)
     state = _extract_state(address)
     selected_beds = max(0, min(int(beds or 0), 4))
-    result = {
+    county = _extract_kentucky_county(address) if state == "KY" else None
+    fmr_data = KY_FY2025_FMR_BY_COUNTY.get(county) if county else None
+    used_fallback = fmr_data is None
+
+    if used_fallback:
+        fmr_data = KY_STATEWIDE_MEDIAN_FMR
+
+    return {
         "zip_code": zip_code,
         "state": state,
+        "county": county,
         "bedrooms": selected_beds,
         "label": BEDROOM_LABELS.get(selected_beds, f"{selected_beds} bedrooms"),
-        "rent": None,
-        "area_name": None,
-        "error": None,
+        "rent": fmr_data.get(f"fmr_{selected_beds}"),
+        "area_name": fmr_data.get("area_name"),
+        "source_year": "FY2025",
+        "used_fallback": used_fallback,
+        "error": None if state == "KY" else "Static HUD FMR lookup is currently available for Kentucky only.",
     }
 
-    if not zip_code:
-        result["error"] = "No ZIP code found in the address."
-        return result
-    if not state:
-        result["error"] = "No state abbreviation found in the address."
-        return result
 
-    url = f"{HUD_FMR_STATEDATA_BASE_URL}/{state}"
-    request = urllib.request.Request(url, headers=_hud_headers(), method="GET")
-    _log_hud_request(request)
+def _extract_kentucky_county(address: str) -> Optional[str]:
+    normalized_address = _normalize_text(address)
 
-    try:
-        with urllib.request.urlopen(request, timeout=10) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        print(f"HUD FMR request failed: {url} -> {exc}", flush=True)
-        result["error"] = f"HUD FMR lookup unavailable: {exc}"
-        return result
+    county_match = COUNTY_RE.search(address or "")
+    if county_match:
+        county = _title_county(county_match.group(1))
+        if county in KY_FY2025_FMR_BY_COUNTY:
+            return county
 
-    area = _find_fmr_area_for_zip(payload, zip_code)
-    if not area:
-        result["error"] = f"HUD FMR response did not include a county or metro area for ZIP {zip_code}."
-        return result
+    for county in KY_FY2025_FMR_BY_COUNTY:
+        if re.search(rf"\b{re.escape(county.lower())}\s+county\b", normalized_address):
+            return county
 
-    result["rent"] = _selected_bedroom_fmr(area, selected_beds)
-    result["area_name"] = _area_name(area)
-    if result["rent"] is None:
-        result["error"] = "HUD FMR response did not include a value for the selected bedroom count."
-    return result
+    for city, county in KY_CITY_TO_COUNTY.items():
+        if re.search(rf"\b{re.escape(city)}\b", normalized_address):
+            return county
 
-
-def _hud_headers() -> dict:
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": "RentSnap/1.0",
-    }
-    token = (os.getenv("HUD_API_TOKEN") or "").strip()
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    else:
-        print("HUD_API_TOKEN is not set; HUD FMR request will be sent without Authorization.", flush=True)
-    return headers
-
-
-def _log_hud_request(request: urllib.request.Request) -> None:
-    headers = dict(request.header_items())
-    logged_headers = dict(headers)
-    if "Authorization" in logged_headers:
-        logged_headers["Authorization"] = _redact_authorization(logged_headers["Authorization"])
-
-    print(f"HUD FMR request URL: {request.full_url}", flush=True)
-    print(f"HUD FMR request headers: {logged_headers}", flush=True)
-
-
-def _redact_authorization(value: str) -> str:
-    if not value.startswith("Bearer "):
-        return "<redacted>"
-    token = value.removeprefix("Bearer ")
-    if len(token) <= 8:
-        return "Bearer <redacted>"
-    return f"Bearer {token[:4]}...{token[-4:]}"
-
-
-def _find_fmr_area_for_zip(payload: Any, zip_code: str) -> Optional[dict]:
-    for collection_name in ("counties", "metroareas"):
-        for area in _collect_named_lists(payload, collection_name):
-            if isinstance(area, dict) and _area_matches_zip(area, zip_code):
-                return area
     return None
 
 
-def _collect_named_lists(value: Any, target_name: str) -> List[Any]:
-    matches = []
-    normalized_target = _normalize_fmr_key(target_name)
-
-    if isinstance(value, dict):
-        for key, item in value.items():
-            if _normalize_fmr_key(str(key)) == normalized_target and isinstance(item, list):
-                matches.extend(item)
-            matches.extend(_collect_named_lists(item, target_name))
-    elif isinstance(value, list):
-        for item in value:
-            matches.extend(_collect_named_lists(item, target_name))
-
-    return matches
+def _normalize_text(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "").lower()).strip()
 
 
-def _area_matches_zip(area: dict, zip_code: str) -> bool:
-    def walk(value: Any, key_hint: str = "") -> bool:
-        if isinstance(value, dict):
-            for key, item in value.items():
-                normalized_key = _normalize_fmr_key(str(key))
-                if "zip" in normalized_key and _value_contains_zip(item, zip_code):
-                    return True
-                if walk(item, normalized_key):
-                    return True
-        elif isinstance(value, list):
-            if "zip" in key_hint and _value_contains_zip(value, zip_code):
-                return True
-            for item in value:
-                if walk(item, key_hint):
-                    return True
-        elif "zip" in key_hint and _value_contains_zip(value, zip_code):
-            return True
-        return False
-
-    return walk(area)
-
-
-def _value_contains_zip(value: Any, zip_code: str) -> bool:
-    if isinstance(value, list):
-        return any(_value_contains_zip(item, zip_code) for item in value)
-    if isinstance(value, dict):
-        return any(_value_contains_zip(item, zip_code) for item in value.values())
-    if value is None:
-        return False
-    return zip_code in re.findall(r"\d{5}", str(value))
-
-
-def _area_name(area: dict) -> Optional[str]:
-    for key in ("area_name", "areaname", "name", "county_name", "countyname", "metro_name", "metroname"):
-        value = _find_first_value(area, key)
-        if value:
-            return str(value)
-    return None
-
-
-def _find_first_value(value: Any, target_key: str) -> Optional[Any]:
-    normalized_target = _normalize_fmr_key(target_key)
-    if isinstance(value, dict):
-        for key, item in value.items():
-            if _normalize_fmr_key(str(key)) == normalized_target and item not in (None, ""):
-                return item
-            found = _find_first_value(item, target_key)
-            if found not in (None, ""):
-                return found
-    elif isinstance(value, list):
-        for item in value:
-            found = _find_first_value(item, target_key)
-            if found not in (None, ""):
-                return found
-    return None
-
-
-def _selected_bedroom_fmr(payload: Any, beds: int) -> Optional[float]:
-    target_keys = {_normalize_fmr_key(key) for key in BEDROOM_FMR_KEYS.get(beds, ())}
-
-    def walk(value: Any) -> Optional[float]:
-        if isinstance(value, dict):
-            for key, item in value.items():
-                if _normalize_fmr_key(str(key)) in target_keys:
-                    parsed = _parse_rent(item)
-                    if parsed is not None:
-                        return parsed
-            for item in value.values():
-                parsed = walk(item)
-                if parsed is not None:
-                    return parsed
-        elif isinstance(value, list):
-            for item in value:
-                parsed = walk(item)
-                if parsed is not None:
-                    return parsed
-        return None
-
-    return walk(payload)
-
-
-def _normalize_fmr_key(key: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", key.lower())
-
-
-def _parse_rent(value: Any) -> Optional[float]:
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
-        cleaned = value.replace("$", "").replace(",", "").strip()
-        try:
-            return float(cleaned)
-        except ValueError:
-            return None
-    return None
+def _title_county(value: str) -> str:
+    return re.sub(r"\s+", " ", value or "").strip().title()
 
 
 def _hud_fmr_html(fmr_result: dict) -> str:
     zip_code = escape(fmr_result.get("zip_code") or "Not found")
     label = escape(fmr_result.get("label") or "selected bedroom count")
     area_name = fmr_result.get("area_name")
+    county = fmr_result.get("county")
+    source_year = escape(fmr_result.get("source_year") or "FY2025")
 
-    if fmr_result.get("rent") is not None:
+    if fmr_result.get("rent") is not None and not fmr_result.get("error"):
         rent = f"${fmr_result['rent']:,.0f}/mo"
-        detail = f"HUD Fair Market Rent for {label} in ZIP {zip_code}"
+        if county:
+            detail = f"{source_year} HUD Fair Market Rent for {label} in {county} County, KY"
+        else:
+            detail = f"{source_year} HUD Fair Market Rent for {label} in Kentucky"
         if area_name:
             detail += f" ({area_name})"
+        if fmr_result.get("used_fallback"):
+            detail += " - statewide median fallback"
         value_html = f"<strong>{escape(rent)}</strong>"
     else:
-        detail = f"HUD Fair Market Rent for {label}"
+        detail = f"{source_year} HUD Fair Market Rent for {label}"
         value_html = f"<span style=\"color:#991b1b\">{escape(fmr_result.get('error') or 'Unavailable')}</span>"
 
     return f"""
@@ -336,7 +238,7 @@ def _hud_fmr_html(fmr_result: dict) -> str:
             {value_html}
         </div>
         <div style="font-size:0.82rem;color:#52606d">
-            {escape(detail)}
+            {escape(detail)}; ZIP {zip_code}
         </div>
     </section>
     """
